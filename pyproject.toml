@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "theneedlescrape"
+version = "0.1.0"
+description = "Scrape review data from theneedledrop.com."
+authors = ["Michael Doyle <michaeldoyle1994@gmail.com>"]
+license = "GPL"
+readme = "README.md"
+packages = [
+    { include = "tns" },
+]
+
+[tool.poetry.scripts]
+tns = "tns.cli:app"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32.3"
+beautifulsoup4 = "^4.12.3"
+rich = "^13.7.1"
+typer = {extras = ["all"], version = "^0.12.3"}
+yt-dlp = {extras = ["default"], version = "^2024.7.16"}
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
+isort = "^5.13.2"
+flake8 = "^7.1.0"
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+line-length = 90
+target-version = ['py312']
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
