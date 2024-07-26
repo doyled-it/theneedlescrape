@@ -38,16 +38,39 @@ def get_cover_art_link(mbid):
     return None
 
 
+def get_processed_urls(output_file):
+    processed = set()
+    try:
+        with open(output_file, "r") as f:
+            for line in f:
+                entry = json.loads(line)
+                url = entry.get("url")
+                if url:
+                    processed.add(url)
+    except FileNotFoundError:
+        pass  # Output file doesn't exist yet, which is fine
+    return processed
+
+
 def process_file(input_file, output_file):
+    processed_urls = get_processed_urls(output_file)
+
     with open(input_file, "r") as infile:
         input_lines = infile.readlines()
-    with open(output_file, "w") as outfile:
+
+    with open(output_file, "a") as outfile:
         for line in track(
             input_lines,
             description="Collecting MBIDs & Cover Art",
             total=len(input_lines),
         ):
             entry = json.loads(line)
+            url = entry.get("url")
+
+            if url in processed_urls:
+                log.info(f"Skipping already processed entry: {url}")
+                continue
+
             artist = entry.get("artist")
             album = entry.get("album")
 
@@ -58,6 +81,7 @@ def process_file(input_file, output_file):
                     album = album.replace("| REVIEW", "")
                 if "‡ REVIEW" in album:
                     album = album.replace("‡ REVIEW", "")
+
                 mbid = search_album_mbid(artist, album)
                 if mbid:
                     entry["album_mbid"] = mbid
@@ -71,6 +95,9 @@ def process_file(input_file, output_file):
 
             json.dump(entry, outfile)
             outfile.write("\n")
+            outfile.flush()  # Ensure the data is written immediately
+
+            processed_urls.add(url)
 
             # Be nice to the APIs
             time.sleep(0.5)
