@@ -1,8 +1,10 @@
+import base64
 import json
 from datetime import datetime
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 
 def safe_float(value):
@@ -97,80 +99,220 @@ try:
 except Exception as e:
     print(f"Error processing the file: {e}")
     exit(1)
+# Define a custom color palette
+color_palette = [
+    "#FFCC02",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+]
+
+
+# Function to create layout with image title
+def create_layout_with_image(title_text, image_path, bgcolor="#F9F28D"):
+    return dict(
+        images=[
+            dict(
+                source=image_path,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=1.05,
+                sizex=0.2,
+                sizey=0.2,
+                xanchor="center",
+                yanchor="bottom",
+            )
+        ],
+        title=dict(
+            text=title_text,
+            font=dict(family="'modica-ultra', Arial, sans-serif", size=24, color="#333"),
+            y=0.95,
+            x=0.5,
+            xanchor="center",
+            yanchor="top",
+        ),
+        plot_bgcolor=bgcolor,
+        paper_bgcolor=bgcolor,
+        font=dict(family="'modica-ultra', Arial, sans-serif", size=12, color="#333"),
+        xaxis=dict(
+            showgrid=True,
+            gridwidth=1,
+            gridcolor="rgba(100,100,100,0.5)",
+            showline=True,
+            linewidth=2,
+            linecolor="rgba(0,0,0,0.5)",
+        ),
+        yaxis=dict(
+            range=[-0.5, 10.5],
+            tickmode="linear",
+            tick0=0,
+            dtick=1,
+            tickvals=list(range(0, 11)),
+            ticktext=list(range(0, 11)),
+            showgrid=True,
+            gridwidth=1,
+            gridcolor="rgba(100,100,100,0.5)",
+            showline=True,
+            linewidth=2,
+            linecolor="rgba(0,0,0,0.5)",
+        ),
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial, sans-serif"),
+    )
+
 
 # 1. Score vs. date plot
 fig1 = px.scatter(
     df,
     x="date",
     y="score",
-    title="TheNeedleDrop Review Scores Over Time",
     custom_data=["original_score", "artist", "album"],
 )
 fig1.update_traces(
-    marker=dict(size=8),
+    marker=dict(
+        size=8,
+        color="white",  # White fill
+        line=dict(color="black", width=1.5),  # Black outline
+    ),
+    opacity=1,  # Full opacity to make the outline visible
     hovertemplate="<br>".join(
         [
-            "Date: %{x}",
+            "<b>%{customdata[1]} - %{customdata[2]}</b>",
+            "Date: %{x|%B %d, %Y}",
             "Score: %{customdata[0]}",
-            "Artist: %{customdata[1]}",
-            "Album: %{customdata[2]}",
         ]
     ),
 )
 fig1.update_layout(
-    xaxis_title="Review Date",
-    yaxis_title="Score",
-    yaxis=dict(
-        range=[-0.5, 10.5],  # Extended range for breathing room
-        tickmode="linear",
-        tick0=0,
-        dtick=1,
-        tickvals=list(range(0, 11)),
-        ticktext=list(range(0, 11)),
-    ),
+    create_layout_with_image(
+        "TheNeedleDrop Review Scores Over Time", "assets/img/The_Needle_Drop_logo.png"
+    )
 )
+fig1.update_xaxes(title_text="Review Date")
+fig1.update_yaxes(title_text="Score")
 
 # 2. Score vs. year plot (modified)
-fig2 = px.box(
-    df,
-    x="year",
-    y="score",
-    points="outliers",
-    title="TheNeedleDrop Review Scores by Year",
-    boxmode="overlay",
-    notched=True,
-    custom_data=["original_score", "artist", "album"],
-)
-fig2.update_traces(
-    boxpoints="outliers",
-    jitter=0,
-    marker=dict(size=5, opacity=0.7),
-    hovertemplate="<br>".join(
-        [
-            "Year: %{x}",
-            "Score: %{customdata[0]}",
-            "Artist: %{customdata[1]}",
-            "Album: %{customdata[2]}",
-        ]
-    ),
-)
-fig2.update_layout(
-    xaxis_title="Album Release Year",
-    yaxis_title="Score",
-    yaxis=dict(
-        range=[-0.5, 10.5],  # Extended range for breathing room
-        tickmode="linear",
-        tick0=0,
-        dtick=1,
-        tickvals=list(range(0, 11)),
-        ticktext=list(range(0, 11)),
-    ),
-)
+fig2 = go.Figure()
 
+for i, year in enumerate(sorted(df["year"].unique())):
+    year_data = df[df["year"] == year]
+    fig2.add_trace(
+        go.Box(
+            y=year_data["score"],
+            x=[year] * len(year_data),
+            name=str(year),
+            boxpoints="outliers",
+            jitter=0.3,
+            whiskerwidth=0.2,
+            fillcolor=color_palette[i % len(color_palette)],
+            marker_color=color_palette[i % len(color_palette)],
+            line_color="rgb(0,0,0)",
+            marker=dict(size=5, opacity=0.7),
+            customdata=year_data[["original_score", "artist", "album"]].values,
+            hovertemplate="<br>".join(
+                [
+                    "<b>%{customdata[1]} - %{customdata[2]}</b>",
+                    "Year: %{x}",
+                    "Score: %{customdata[0]}",
+                ]
+            ),
+        )
+    )
+
+fig2.update_layout(
+    create_layout_with_image(
+        "TheNeedleDrop Review Scores by Year",
+        "assets/img/The_Needle_Drop_logo.png",
+    )
+)
+fig2.update_xaxes(title_text="Album Release Year")
+fig2.update_yaxes(title_text="Score")
+# Update both fig1 and fig2 to use the custom font
+
+
+def encode_font(file_path):
+    with open(file_path, "rb") as font_file:
+        return base64.b64encode(font_file.read()).decode("utf-8")
+
+
+# Encode your font files (adjust paths as necessary)
+font_woff2 = encode_font("assets/fonts/modica-ultra.woff2")
+font_woff = encode_font("assets/fonts/modica-ultra.woff")
+font_otf = encode_font("assets/fonts/modica-ultra.otf")
+
+# Update the CSS with the correct font name
+custom_css = f"""
+<style>
+@font-face {{
+  font-family: 'modica-ultra';
+  src: url(data:font/woff2;charset=utf-8;base64,{font_woff2}) format('woff2'),
+       url(data:font/woff;charset=utf-8;base64,{font_woff}) format('woff'),
+       url(data:font/otf;charset=utf-8;base64,{font_otf}) format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}}
+
+body {{
+  font-family: 'modica-ultra', Arial, sans-serif;
+}}
+</style>
+"""
+
+# Update the HTML template to include JavaScript for applying the font to Plotly elements
+html_template = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Scores</title>
+    {custom_css}
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div id="font-test">
+        Test text in custom font
+        <span class="fn-icon-ok"></span>
+    </div>
+    <div id="plot"></div>
+    <script>
+        var plotData = {plot_data};
+        Plotly.newPlot('plot', plotData.data, plotData.layout).then(function() {{
+            var gd = document.getElementById('plot');
+            var traces = document.querySelectorAll('#plot .traces');
+            traces.forEach(function(trace) {{
+                trace.style.fontFamily = "'modica-ultra', Arial, sans-serif";
+            }});
+            Plotly.redraw(gd);
+        }});
+    </script>
+</body>
+</html>
+"""
+
+fig1.update_layout(font=dict(family="'modica-ultra', Arial, sans-serif"))
+fig2.update_layout(font=dict(family="'modica-ultra', Arial, sans-serif"))
 # Display the plots
 fig1.show()
 fig2.show()
 
-# Optionally, save the plots as HTML files for easy sharing
-fig1.write_html("score_vs_date.html")
-fig2.write_html("score_vs_year.html")
+# Save the plot as a complete HTML file
+with open("score_vs_date.html", "w") as f:
+    plot_data = json.loads(fig1.to_json())
+    f.write(html_template.format(custom_css=custom_css, plot_data=json.dumps(plot_data)))
+
+# Do the same for fig2 if needed
+with open("score_vs_year.html", "w") as f:
+    plot_data = json.loads(fig2.to_json())
+    f.write(html_template.format(custom_css=custom_css, plot_data=json.dumps(plot_data)))
+
+print(
+    "HTML files have been generated with embedded fonts. You can now open them in your "
+    "browser."
+)
