@@ -19,11 +19,16 @@ beautifulsoup4 = "^4.12.3"
 rich = "^13.7.1"
 typer = {extras = ["all"], version = "^0.12.3"}
 yt-dlp = {extras = ["default"], version = "^2024.7.16"}
+musicbrainzngs = "^0.7.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
 isort = "^5.13.2"
 flake8 = "^7.1.0"
+
+
+[tool.poetry.group.pyplot.dependencies]
+plotly = "^5.23.0"
 
 [tool.isort]
 profile = "black"

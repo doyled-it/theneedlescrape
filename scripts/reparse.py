@@ -9,7 +9,15 @@ def title_case(s):
     )
 
 
-def extract_score(text):
+def extract_score(text: str) -> str:
+    """Extract a score from a string
+
+    Arguments:
+        text: The string to extract the score from
+
+    Returns:
+        The extracted score as a string
+    """
     # Try to find a numeric score at the end of the description
     numeric_match = re.search(r"\b(10|[0-9](?:\.\d+)?)/10\s*$", text, re.MULTILINE)
     if numeric_match:
@@ -28,7 +36,17 @@ def extract_score(text):
     return None
 
 
-def extract_year(description, tags, url):
+def extract_year(description: str, tags: list[str], url: str) -> str:
+    """Extract the year from a description, tags, or URL
+
+    Arguments:
+        description: The description of the review
+        tags: The tags associated with the review
+        url: The URL of the review
+
+    Returns:
+        The extracted year as a string
+    """
     current_year = (
         2024  # Update this annually or use a dynamic method to get the current year
     )
@@ -68,12 +86,12 @@ def extract_year(description, tags, url):
     return None
 
 
-def is_multi_review(description):
+def is_multi_review(description: str) -> bool:
     # Check if the description contains multiple numbered entries
     return bool(re.search(r"\n\d+\..*\n\d+\.", description, re.DOTALL))
 
 
-def parse_review(json_obj):
+def parse_review(json_obj: dict) -> dict:
     description = json_obj.get("whole_description", "")
     title = json_obj.get("title", "")
     tags = json_obj.get("tags", [])
@@ -205,7 +223,7 @@ def parse_review(json_obj):
     return json_obj
 
 
-def process_jsonl_file(input_file, output_file):
+def process_jsonl_file(input_file: str, output_file: str) -> None:
     with open(input_file, "r") as infile, open(output_file, "w") as outfile:
         for line in infile:
             json_obj = json.loads(line.strip())

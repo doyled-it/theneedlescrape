@@ -1,0 +1,83 @@
+import json
+import time
+
+import musicbrainzngs
+import requests
+
+from tns.utils.logger import create_logger
+from tns.utils.progress import track
+
+log = create_logger(__name__)
+
+# Set up MusicBrainz API
+musicbrainzngs.set_useragent("theneedlepoint", "0.1.0", "michaeldoyle1994@gmail.com")
+
+
+def search_album_mbid(artist, album):
+    try:
+        result = musicbrainzngs.search_release_groups(
+            artist=artist, release=album, limit=1
+        )
+        if result["release-group-list"]:
+            return result["release-group-list"][0]["id"]
+    except musicbrainzngs.WebServiceError as exc:
+        log.error(f"Error searching for {artist} - {album}: {exc}")
+    return None
+
+
+def get_cover_art_link(mbid):
+    url = f"http://coverartarchive.org/release-group/{mbid}"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            if data["images"]:
+                return data["images"][0]["image"]
+    except requests.RequestException as exc:
+        log.error(f"Error fetching cover art for MBID {mbid}: {exc}")
+    return None
+
+
+def process_file(input_file, output_file):
+    with open(input_file, "r") as infile:
+        input_lines = infile.readlines()
+    with open(output_file, "w") as outfile:
+        for line in track(
+            input_lines,
+            description="Collecting MBIDs & Cover Art",
+            total=len(input_lines),
+        ):
+            entry = json.loads(line)
+            artist = entry.get("artist")
+            album = entry.get("album")
+
+            if artist and album:
+                if "Run Overdrive" in album:
+                    album = album.replace(" 7'' | REVIEW", "").replace('"', "")
+                if "| REVIEW" in album:
+                    album = album.replace("| REVIEW", "")
+                if "‡ REVIEW" in album:
+                    album = album.replace("‡ REVIEW", "")
+                mbid = search_album_mbid(artist, album)
+                if mbid:
+                    entry["album_mbid"] = mbid
+                    cover_art_link = get_cover_art_link(mbid)
+                    if cover_art_link:
+                        entry["cover_art_link"] = cover_art_link
+                    else:
+                        log.warning(f"No cover art found for {artist} - {album}")
+                else:
+                    log.warning(f"No MBID found for {artist} - {album}")
+
+            json.dump(entry, outfile)
+            outfile.write("\n")
+
+            # Be nice to the APIs
+            time.sleep(0.5)
+
+
+if __name__ == "__main__":
+    input_file = "data/final_review_info.jsonl"
+    output_file = "data/output_with_mbid.jsonl"
+    process_file(input_file, output_file)
+    log.info("Processing complete. Check the output file.")
