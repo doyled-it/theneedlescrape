@@ -3,6 +3,7 @@ from pathlib import Path
 import typer
 from typing_extensions import Annotated
 
+from .scraping.reparse import reparse_reviews
 from .scraping.reviews import retry_null_youtube_links, scrape_all_reviews
 from .scraping.web import remove_duplicates, scrape_all_urls
 from .scraping.youtube import update_reviews_with_youtube_details
@@ -70,7 +71,10 @@ def links(
 
 @scrape.command(
     "reviews",
-    help=("Scrape the review data from each of the review pages."),
+    help=(
+        "Scrape the review data from each of the review pages. Must run `tns scrape "
+        "links` first."
+    ),
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 def reviews(
@@ -105,7 +109,10 @@ def reviews(
 
 @scrape.command(
     "youtube",
-    help=("Scrape the review data from each of the reviews' YouTube Videos."),
+    help=(
+        "Scrape the review data from each of the reviews' YouTube Videos. Must run `tns "
+        "scrape reviews` first."
+    ),
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 def youtube(
@@ -133,6 +140,7 @@ def youtube(
         output_file: Path to save the review data.
     """
     update_reviews_with_youtube_details(input_file, output_file)
+    reparse_reviews(output_file, output_file)
 
 
 app.add_typer(scrape, name="scrape")
