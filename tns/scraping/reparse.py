@@ -1,6 +1,10 @@
 import json
 import re
 
+from ..utils.logger import create_logger
+
+log = create_logger(__name__)
+
 
 def title_case(s):
     return " ".join(
@@ -223,16 +227,23 @@ def parse_review(json_obj: dict) -> dict:
     return json_obj
 
 
-def process_jsonl_file(input_file: str, output_file: str) -> None:
+def reparse_reviews(input_file: str, output_file: str) -> None:
+    """Reparse the review information in the input file and write to the output file
+
+    Arguments:
+        input_file: The path to the input file containing the review information
+        output_file: The path to the output file to write the updated review information
+    """
     with open(input_file, "r") as infile, open(output_file, "w") as outfile:
         for line in infile:
             json_obj = json.loads(line.strip())
             updated_obj = parse_review(json_obj)
             json.dump(updated_obj, outfile)
             outfile.write("\n")
+    log.debug(f"Reparse complete. Updated review information saved to {output_file}")
 
 
-# Usage
-input_file = "data/updated_review_info.jsonl"
-output_file = "data/final_review_info.jsonl"
-process_jsonl_file(input_file, output_file)
+if __name__ == "__main__":
+    input_file = "data/updated_review_info.jsonl"
+    output_file = "data/final_review_info.jsonl"
+    reparse_reviews(input_file, output_file)
