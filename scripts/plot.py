@@ -83,6 +83,8 @@ def process_jsonl(file_path):
                     "original_score": original_score,
                     "artist": review.get("artist", "Unknown Artist"),
                     "album": review.get("album", "Unknown Album"),
+                    "youtube_link": review.get("youtube_link", ""),
+                    "cover_art_link": review.get("cover_art_link", ""),  # Add this line
                 }
             )
 
@@ -93,12 +95,12 @@ def process_jsonl(file_path):
     return pd.DataFrame(data)
 
 
-# Read and process the data
 try:
-    df = process_jsonl("data/final_review_info.jsonl")
+    df = process_jsonl("data/output_with_mbid.jsonl")
 except Exception as e:
     print(f"Error processing the file: {e}")
     exit(1)
+
 # Define a custom color palette
 color_palette = [
     "#FFCC02",
@@ -114,7 +116,17 @@ color_palette = [
 ]
 
 
-# Function to create layout with image title
+def encode_font(file_path):
+    with open(file_path, "rb") as font_file:
+        return base64.b64encode(font_file.read()).decode("utf-8")
+
+
+# Encode your font files (adjust paths as necessary)
+font_woff2 = encode_font("assets/fonts/modica-ultra.woff2")
+font_woff = encode_font("assets/fonts/modica-ultra.woff")
+font_otf = encode_font("assets/fonts/modica-ultra.otf")
+
+
 def create_layout_with_image(title_text, image_path, bgcolor="#F9F28D"):
     return dict(
         images=[
@@ -132,7 +144,7 @@ def create_layout_with_image(title_text, image_path, bgcolor="#F9F28D"):
         ],
         title=dict(
             text=title_text,
-            font=dict(family="'modica-ultra', Arial, sans-serif", size=24, color="#333"),
+            font=dict(family="modica-ultra", size=24, color="#333"),
             y=0.95,
             x=0.5,
             xanchor="center",
@@ -140,7 +152,7 @@ def create_layout_with_image(title_text, image_path, bgcolor="#F9F28D"):
         ),
         plot_bgcolor=bgcolor,
         paper_bgcolor=bgcolor,
-        font=dict(family="'modica-ultra', Arial, sans-serif", size=12, color="#333"),
+        font=dict(family="modica-ultra", size=12, color="#333"),
         xaxis=dict(
             showgrid=True,
             gridwidth=1,
@@ -163,7 +175,6 @@ def create_layout_with_image(title_text, image_path, bgcolor="#F9F28D"):
             linewidth=2,
             linecolor="rgba(0,0,0,0.5)",
         ),
-        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial, sans-serif"),
     )
 
 
@@ -172,27 +183,33 @@ fig1 = px.scatter(
     df,
     x="date",
     y="score",
-    custom_data=["original_score", "artist", "album"],
+    custom_data=[
+        "original_score",
+        "artist",
+        "album",
+        "youtube_link",
+        "cover_art_link",
+    ],
 )
 fig1.update_traces(
     marker=dict(
         size=8,
-        color="white",  # White fill
-        line=dict(color="black", width=1.5),  # Black outline
+        color="white",
+        line=dict(color="black", width=1.5),
     ),
-    opacity=1,  # Full opacity to make the outline visible
-    hovertemplate="<br>".join(
-        [
-            "<b>%{customdata[1]} - %{customdata[2]}</b>",
-            "Date: %{x|%B %d, %Y}",
-            "Score: %{customdata[0]}",
-        ]
+    opacity=1,
+    hovertemplate=(
+        "<b>%{customdata[1]} - %{customdata[2]}</b><br>"
+        "Date: %{x|%B %d, %Y}<br>"
+        "Score: %{customdata[0]}<br>"
     ),
 )
 fig1.update_layout(
     create_layout_with_image(
-        "TheNeedleDrop Review Scores Over Time", "assets/img/The_Needle_Drop_logo.png"
-    )
+        "THE NEEDLE DROP REVIEWS OVER TIME",
+        "assets/img/The_Needle_Drop_logo.png",
+    ),
+    height=800,
 )
 fig1.update_xaxes(title_text="Review Date")
 fig1.update_yaxes(title_text="Score")
@@ -227,26 +244,20 @@ for i, year in enumerate(sorted(df["year"].unique())):
 
 fig2.update_layout(
     create_layout_with_image(
-        "TheNeedleDrop Review Scores by Year",
+        "THE NEEDLE DROP REVIEWS BY YEAR",
         "assets/img/The_Needle_Drop_logo.png",
-    )
+    ),
+    height=800,
 )
 fig2.update_xaxes(title_text="Album Release Year")
 fig2.update_yaxes(title_text="Score")
-# Update both fig1 and fig2 to use the custom font
 
 
-def encode_font(file_path):
-    with open(file_path, "rb") as font_file:
-        return base64.b64encode(font_file.read()).decode("utf-8")
+# Display the plots
+# fig1.show()
+# fig2.show()
 
-
-# Encode your font files (adjust paths as necessary)
-font_woff2 = encode_font("assets/fonts/modica-ultra.woff2")
-font_woff = encode_font("assets/fonts/modica-ultra.woff")
-font_otf = encode_font("assets/fonts/modica-ultra.otf")
-
-# Update the CSS with the correct font name
+# Custom CSS for HTML output
 custom_css = f"""
 <style>
 @font-face {{
@@ -264,7 +275,7 @@ body {{
 </style>
 """
 
-# Update the HTML template to include JavaScript for applying the font to Plotly elements
+# Modify the HTML template
 html_template = """
 <!DOCTYPE html>
 <html lang="en">
@@ -274,17 +285,48 @@ html_template = """
     <title>Review Scores</title>
     {custom_css}
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        #plot {{
+            height: 800px;
+            width: 100%;
+        }}
+        .hover-image {{
+            max-width: 100px;
+            max-height: 100px;
+            display: block;
+            margin: 5px 0;
+        }}
+    </style>
 </head>
 <body>
-    <div id="font-test">
-        Test text in custom font
-        <span class="fn-icon-ok"></span>
-    </div>
     <div id="plot"></div>
     <script>
         var plotData = {plot_data};
         Plotly.newPlot('plot', plotData.data, plotData.layout).then(function() {{
             var gd = document.getElementById('plot');
+            gd.on('plotly_click', function(data) {{
+                var point = data.points[0];
+                var youtubeLink = point.customdata[3];
+                if (youtubeLink) {{
+                    window.open(youtubeLink, '_blank');
+                }}
+            }});
+            gd.on('plotly_hover', function(data) {{
+                var point = data.points[0];
+                var coverArtLink = point.customdata[4];
+                if (coverArtLink) {{
+                    var hoverInfo = document.querySelector('.hover-info');
+                    if (hoverInfo) {{
+                        var img = hoverInfo.querySelector('img');
+                        if (!img) {{
+                            img = document.createElement('img');
+                            img.className = 'hover-image';
+                            hoverInfo.appendChild(img);
+                        }}
+                        img.src = coverArtLink;
+                    }}
+                }}
+            }});
             var traces = document.querySelectorAll('#plot .traces');
             traces.forEach(function(trace) {{
                 trace.style.fontFamily = "'modica-ultra', Arial, sans-serif";
@@ -296,18 +338,11 @@ html_template = """
 </html>
 """
 
-fig1.update_layout(font=dict(family="'modica-ultra', Arial, sans-serif"))
-fig2.update_layout(font=dict(family="'modica-ultra', Arial, sans-serif"))
-# Display the plots
-fig1.show()
-fig2.show()
-
-# Save the plot as a complete HTML file
+# Save the plots as HTML files
 with open("score_vs_date.html", "w") as f:
     plot_data = json.loads(fig1.to_json())
     f.write(html_template.format(custom_css=custom_css, plot_data=json.dumps(plot_data)))
 
-# Do the same for fig2 if needed
 with open("score_vs_year.html", "w") as f:
     plot_data = json.loads(fig2.to_json())
     f.write(html_template.format(custom_css=custom_css, plot_data=json.dumps(plot_data)))
