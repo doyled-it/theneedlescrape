@@ -5,9 +5,9 @@ import pandas as pd
 import plotly.express as px
 
 
-def safe_int(value):
+def safe_float(value):
     try:
-        return int(value)
+        return float(value)
     except (ValueError, TypeError):
         return None
 
@@ -25,26 +25,36 @@ def process_jsonl(file_path):
                 continue
 
             score = review.get("review_score")
+            original_score = score  # Keep the original score for tooltip
 
             if score is None:
                 print(f"Skipping entry with no score on line {line_num}")
                 skipped_entries += 1
                 continue
 
-            if score == "classic":
-                score = 10
-            elif score == "not good":
-                score = 0
-            else:
-                try:
-                    score = int(score.split("/")[0])
-                except (AttributeError, ValueError, IndexError):
-                    print(f"Skipping invalid score: {score} on line {line_num}")
-                    skipped_entries += 1
-                    continue
+            if isinstance(score, str):
+                score = score.lower().strip()
+                if score in ["classic", "classic/10"]:
+                    score = 9.5  # Changed from 10 to 9.5
+                    original_score = "Classic"
+                elif score in ["not good", "not good/10"]:
+                    score = 0.5  # Changed from 0 to 0.5
+                    original_score = "NOT GOOD"
+                else:
+                    try:
+                        score = safe_float(score.split("/")[0])
+                    except (AttributeError, IndexError):
+                        print(f"Skipping invalid score: {score} on line {line_num}")
+                        skipped_entries += 1
+                        continue
+
+            if score is None:
+                print(f"Skipping invalid score: {score} on line {line_num}")
+                skipped_entries += 1
+                continue
 
             date = review.get("date")
-            year = safe_int(review.get("year"))
+            year = safe_float(review.get("year"))
 
             if date is None or year is None:
                 print(
@@ -66,8 +76,9 @@ def process_jsonl(file_path):
             data.append(
                 {
                     "date": date,
-                    "year": year,
+                    "year": int(year),
                     "score": score,
+                    "original_score": original_score,
                     "artist": review.get("artist", "Unknown Artist"),
                     "album": review.get("album", "Unknown Album"),
                 }
@@ -92,20 +103,30 @@ fig1 = px.scatter(
     df,
     x="date",
     y="score",
-    hover_data=["artist", "album"],
     title="TheNeedleDrop Review Scores Over Time",
+    custom_data=["original_score", "artist", "album"],
 )
-fig1.update_traces(marker=dict(size=8))
+fig1.update_traces(
+    marker=dict(size=8),
+    hovertemplate="<br>".join(
+        [
+            "Date: %{x}",
+            "Score: %{customdata[0]}",
+            "Artist: %{customdata[1]}",
+            "Album: %{customdata[2]}",
+        ]
+    ),
+)
 fig1.update_layout(
     xaxis_title="Review Date",
     yaxis_title="Score",
     yaxis=dict(
-        range=[-0.5, 10.5],  # Extended range
+        range=[-0.5, 10.5],  # Extended range for breathing room
         tickmode="linear",
         tick0=0,
         dtick=1,
-        tickvals=list(range(0, 11)),  # Ensure ticks are only on whole numbers
-        ticktext=list(range(0, 11)),  # Label ticks with whole numbers
+        tickvals=list(range(0, 11)),
+        ticktext=list(range(0, 11)),
     ),
 )
 
@@ -114,27 +135,35 @@ fig2 = px.box(
     df,
     x="year",
     y="score",
-    points="outliers",  # Only show outliers
-    hover_data=["artist", "album"],
+    points="outliers",
     title="TheNeedleDrop Review Scores by Year",
-    boxmode="overlay",  # Overlay boxes instead of grouping
-    notched=True,  # Add notches to show confidence interval around median
+    boxmode="overlay",
+    notched=True,
+    custom_data=["original_score", "artist", "album"],
 )
 fig2.update_traces(
-    boxpoints="outliers",  # Ensure only outliers are shown as points
-    jitter=0,  # Remove jitter for cleaner appearance
-    marker=dict(size=5, opacity=0.7),  # Adjust marker size and opacity for outliers
+    boxpoints="outliers",
+    jitter=0,
+    marker=dict(size=5, opacity=0.7),
+    hovertemplate="<br>".join(
+        [
+            "Year: %{x}",
+            "Score: %{customdata[0]}",
+            "Artist: %{customdata[1]}",
+            "Album: %{customdata[2]}",
+        ]
+    ),
 )
 fig2.update_layout(
     xaxis_title="Album Release Year",
     yaxis_title="Score",
     yaxis=dict(
-        range=[-0.5, 10.5],  # Extended range
+        range=[-0.5, 10.5],  # Extended range for breathing room
         tickmode="linear",
         tick0=0,
         dtick=1,
-        tickvals=list(range(0, 11)),  # Ensure ticks are only on whole numbers
-        ticktext=list(range(0, 11)),  # Label ticks with whole numbers
+        tickvals=list(range(0, 11)),
+        ticktext=list(range(0, 11)),
     ),
 )
 
