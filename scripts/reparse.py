@@ -9,21 +9,67 @@ def title_case(s):
     )
 
 
+def extract_score(text):
+    # Try to find a numeric score at the end of the description
+    numeric_match = re.search(r"\b(10|[0-9](?:\.\d+)?)/10\s*$", text, re.MULTILINE)
+    if numeric_match:
+        return numeric_match.group(0)
+
+    # If no numeric score at the end, look for any valid score
+    numeric_match = re.search(r"\b(10|[0-9](?:\.\d+)?)/10\b(?!\d)", text)
+    if numeric_match:
+        return numeric_match.group(0)
+
+    # If no numeric score, look for text followed by "/10"
+    text_match = re.search(r"\b(\w+(?:\s+\w+){0,3})/10\b(?!\d)", text)
+    if text_match:
+        return text_match.group(0)
+
+    return None
+
+
+def is_multi_review(description):
+    # Check if the description contains multiple numbered entries
+    return bool(re.search(r"\n\d+\..*\n\d+\.", description, re.DOTALL))
+
+
 def parse_review(json_obj):
     description = json_obj.get("whole_description", "")
     title = json_obj.get("title", "")
+    tags = json_obj.get("tags", [])
 
-    # Extract review score
-    score_match = re.search(r"(\d+|classic|not good)/10", description, re.IGNORECASE)
-    review_score = score_match.group(0).upper() if score_match else None
+    # Check if this is a multi-review post
+    if is_multi_review(description):
+        return {
+            "review_score": None,
+            "year": json_obj.get("year"),
+            "artist": None,
+            "album": None,
+            "label": None,
+            "genres": [],
+            "fav_tracks": json_obj.get("fav_tracks", []),
+            "least_fav_track": json_obj.get("least_fav_track"),
+        }
+    # Try to extract score from description
+    review_score = extract_score(description)
+
+    # If not found in description, try tags
+    if not review_score:
+        for tag in tags:
+            score = extract_score(tag)
+            if score:
+                review_score = score
+                break
 
     # Extract year of release
-    year = next(
-        (tag for tag in json_obj.get("tags", []) if tag.isdigit() and len(tag) == 4), None
-    )
+    year = next((tag for tag in tags if tag.isdigit() and len(tag) == 4), None)
     if not year:
-        year_match = re.search(r"(\d{4})", description)
+        year_match = re.search(r"\b(19\d{2}|20\d{2})\b", description)
         year = year_match.group(1) if year_match else None
+
+    # Ensure review_score is not the same as the year
+    if review_score and review_score.split("/")[0] == year:
+        review_score = None
 
     # Extract artist, album, label, and genres
     info_line = None
@@ -61,7 +107,7 @@ def parse_review(json_obj):
             genres = [
                 title_case(genre.strip())
                 for genre in parts[-1].split(",")
-                if genre.strip()
+                if genre.strip() and not genre.strip().startswith("http")
             ]
 
     # If artist or album is still None, try to extract from title
@@ -92,11 +138,12 @@ def parse_review(json_obj):
             for tag in json_obj.get("tags", [])
             if not tag.isdigit()
             and tag.lower() not in ["album", "review", "ep", "new", "loved list"]
+            and not tag.startswith("http")
         ]
         genres = [title_case(genre) for genre in genre_tags]
 
-    # Ensure label is not a single digit
-    if label and label.isdigit() and len(label) == 1:
+    # Ensure label is not a single digit or a URL
+    if label and (label.isdigit() or label.startswith("http")):
         label = None
 
     # Parse favorite tracks
@@ -131,5 +178,5 @@ def process_jsonl_file(input_file, output_file):
 
 # Usage
 input_file = "data/updated_review_info.jsonl"
-output_file = "data/output.jsonl"
+output_file = "data/final_review_info.jsonl"
 process_jsonl_file(input_file, output_file)
