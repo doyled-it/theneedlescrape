@@ -28,6 +28,46 @@ def extract_score(text):
     return None
 
 
+def extract_year(description, tags, url):
+    current_year = (
+        2024  # Update this annually or use a dynamic method to get the current year
+    )
+
+    # First, try to find a year in the URL
+    url_year_match = re.search(r"/(\d{4})-", url)
+    if url_year_match:
+        year = int(url_year_match.group(1))
+        if 1900 <= year <= current_year:
+            return str(year)
+
+    # If not found in URL, look for a 4-digit year in tags
+    year_tag = next(
+        (
+            tag
+            for tag in tags
+            if tag.isdigit() and len(tag) == 4 and 1900 <= int(tag) <= current_year
+        ),
+        None,
+    )
+    if year_tag:
+        return year_tag
+
+    # If still not found, search for a year in the format "/ YYYY /" in the description
+    year_match = re.search(r"/\s*(19\d{2}|20\d{2})\s*/", description)
+    if year_match:
+        year = int(year_match.group(1))
+        if year <= current_year:
+            return str(year)
+
+    # If still not found, search for any 4-digit year between 1900 and current year in
+    # the description
+    year_match = re.search(r"\b(19\d{2}|20\d{2})\b", description)
+    if year_match and 1900 <= int(year_match.group(1)) <= current_year:
+        return year_match.group(1)
+
+    return None
+
+
 def is_multi_review(description):
     # Check if the description contains multiple numbered entries
     return bool(re.search(r"\n\d+\..*\n\d+\.", description, re.DOTALL))
@@ -37,6 +77,7 @@ def parse_review(json_obj):
     description = json_obj.get("whole_description", "")
     title = json_obj.get("title", "")
     tags = json_obj.get("tags", [])
+    url = json_obj.get("url", "")
 
     # Check if this is a multi-review post
     if is_multi_review(description):
@@ -61,11 +102,8 @@ def parse_review(json_obj):
                 review_score = score
                 break
 
-    # Extract year of release
-    year = next((tag for tag in tags if tag.isdigit() and len(tag) == 4), None)
-    if not year:
-        year_match = re.search(r"\b(19\d{2}|20\d{2})\b", description)
-        year = year_match.group(1) if year_match else None
+    # Extract year using the new function
+    year = extract_year(description, tags, url)
 
     # Ensure review_score is not the same as the year
     if review_score and review_score.split("/")[0] == year:
