@@ -84,7 +84,8 @@ def process_jsonl(file_path):
                     "artist": review.get("artist", "Unknown Artist"),
                     "album": review.get("album", "Unknown Album"),
                     "youtube_link": review.get("youtube_link", ""),
-                    "cover_art_link": review.get("cover_art_link", ""),  # Add this line
+                    "cover_art_thumbnail": review.get("cover_art_thumbnail", ""),
+                    "cover_art_full": review.get("cover_art_full", ""),
                 }
             )
 
@@ -96,7 +97,7 @@ def process_jsonl(file_path):
 
 
 try:
-    df = process_jsonl("data/output_with_mbid.jsonl")
+    df = process_jsonl("data/output_with_mbid_and_cover_art.jsonl")
 except Exception as e:
     print(f"Error processing the file: {e}")
     exit(1)
@@ -122,9 +123,10 @@ def encode_font(file_path):
 
 
 # Encode your font files (adjust paths as necessary)
-font_woff2 = encode_font("assets/fonts/modica-ultra.woff2")
-font_woff = encode_font("assets/fonts/modica-ultra.woff")
-font_otf = encode_font("assets/fonts/modica-ultra.otf")
+font_woff2 = encode_font("assets/fonts/Montserrat-Black.woff2")
+font_woff = encode_font("assets/fonts/Montserrat-Black.woff")
+font_otf = encode_font("assets/fonts/Montserrat-Black.otf")
+font_ttf = encode_font("assets/fonts/Montserrat-Black.ttf")
 
 
 def create_layout_with_image(title_text, image_path, bgcolor="#F9F28D"):
@@ -144,7 +146,7 @@ def create_layout_with_image(title_text, image_path, bgcolor="#F9F28D"):
         ],
         title=dict(
             text=title_text,
-            font=dict(family="modica-ultra", size=24, color="#333"),
+            font=dict(family="Montserrat-Black", size=24, color="#333"),
             y=0.95,
             x=0.5,
             xanchor="center",
@@ -152,7 +154,7 @@ def create_layout_with_image(title_text, image_path, bgcolor="#F9F28D"):
         ),
         plot_bgcolor=bgcolor,
         paper_bgcolor=bgcolor,
-        font=dict(family="modica-ultra", size=12, color="#333"),
+        font=dict(family="Montserrat-Black", size=12, color="#333"),
         xaxis=dict(
             showgrid=True,
             gridwidth=1,
@@ -188,7 +190,7 @@ fig1 = px.scatter(
         "artist",
         "album",
         "youtube_link",
-        "cover_art_link",
+        "cover_art_thumbnail",
     ],
 )
 fig1.update_traces(
@@ -202,6 +204,7 @@ fig1.update_traces(
         "<b>%{customdata[1]} - %{customdata[2]}</b><br>"
         "Date: %{x|%B %d, %Y}<br>"
         "Score: %{customdata[0]}<br>"
+        "<extra></extra>"  # Important to close hovertemplate correctly
     ),
 )
 fig1.update_layout(
@@ -261,16 +264,17 @@ fig2.update_yaxes(title_text="Score")
 custom_css = f"""
 <style>
 @font-face {{
-  font-family: 'modica-ultra';
+  font-family: 'Montserrat-Black';
   src: url(data:font/woff2;charset=utf-8;base64,{font_woff2}) format('woff2'),
        url(data:font/woff;charset=utf-8;base64,{font_woff}) format('woff'),
+       url(data:font/ttf;charset=utf-8;base64,{font_ttf}) format('truetype');
        url(data:font/otf;charset=utf-8;base64,{font_otf}) format('opentype');
   font-weight: normal;
   font-style: normal;
 }}
 
 body {{
-  font-family: 'modica-ultra', Arial, sans-serif;
+  font-family: 'Montserrat-Black', Arial, sans-serif;
 }}
 </style>
 """
@@ -296,14 +300,25 @@ html_template = """
             display: block;
             margin: 5px 0;
         }}
+        .hover-info {{
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: white;
+        }}
     </style>
 </head>
 <body>
     <div id="plot"></div>
+    <div class="hover-info"></div>
     <script>
         var plotData = {plot_data};
         Plotly.newPlot('plot', plotData.data, plotData.layout).then(function() {{
             var gd = document.getElementById('plot');
+            var hoverInfo = document.querySelector('.hover-info');
+
             gd.on('plotly_click', function(data) {{
                 var point = data.points[0];
                 var youtubeLink = point.customdata[3];
@@ -311,6 +326,7 @@ html_template = """
                     window.open(youtubeLink, '_blank');
                 }}
             }});
+
             gd.on('plotly_hover', function(data) {{
                 var point = data.points[0];
                 var coverArtLink = point.customdata[4];
@@ -327,9 +343,14 @@ html_template = """
                     }}
                 }}
             }});
+
+            gd.on('plotly_unhover', function(data) {{
+                hoverInfo.innerHTML = '';
+            }});
+
             var traces = document.querySelectorAll('#plot .traces');
             traces.forEach(function(trace) {{
-                trace.style.fontFamily = "'modica-ultra', Arial, sans-serif";
+                trace.style.fontFamily = "'Montserrat-Black', Arial, sans-serif";
             }});
             Plotly.redraw(gd);
         }});
