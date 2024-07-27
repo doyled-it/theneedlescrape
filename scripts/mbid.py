@@ -25,17 +25,30 @@ def search_album_mbid(artist, album):
     return None
 
 
-def get_cover_art_link(mbid):
+def get_cover_art_links(mbid):
     url = f"http://coverartarchive.org/release-group/{mbid}"
     try:
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
             if data["images"]:
-                return data["images"][0]["image"]
+                full_image = data["images"][0]["image"]
+                thumbnail = None
+                # Look for the smallest thumbnail available
+                for image in data["images"]:
+                    if "thumbnails" in image:
+                        thumbnails = image["thumbnails"]
+                        # Prioritize smaller thumbnails
+                        for size in ["250", "small", "large"]:
+                            if size in thumbnails:
+                                thumbnail = thumbnails[size]
+                                break
+                        if thumbnail:
+                            break
+                return full_image, thumbnail or full_image
     except requests.RequestException as exc:
         log.error(f"Error fetching cover art for MBID {mbid}: {exc}")
-    return None
+    return None, None
 
 
 def get_processed_urls(output_file):
@@ -81,13 +94,18 @@ def process_file(input_file, output_file):
                     album = album.replace("| REVIEW", "")
                 if "‡ REVIEW" in album:
                     album = album.replace("‡ REVIEW", "")
+                if "Self Titled" in album:
+                    album = album.replace("Self Titled", artist)
+                if "Self-Titled" in album:
+                    album = album.replace("Self-Titled", artist)
 
                 mbid = search_album_mbid(artist, album)
                 if mbid:
                     entry["album_mbid"] = mbid
-                    cover_art_link = get_cover_art_link(mbid)
-                    if cover_art_link:
-                        entry["cover_art_link"] = cover_art_link
+                    full_image, thumbnail = get_cover_art_links(mbid)
+                    if full_image:
+                        entry["cover_art_full"] = full_image
+                        entry["cover_art_thumbnail"] = thumbnail
                     else:
                         log.warning(f"No cover art found for {artist} - {album}")
                 else:
@@ -105,6 +123,6 @@ def process_file(input_file, output_file):
 
 if __name__ == "__main__":
     input_file = "data/final_review_info.jsonl"
-    output_file = "data/output_with_mbid.jsonl"
+    output_file = "data/output_with_mbid_and_cover_art.jsonl"
     process_file(input_file, output_file)
     log.info("Processing complete. Check the output file.")
