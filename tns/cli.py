@@ -3,6 +3,7 @@ from pathlib import Path
 import typer
 from typing_extensions import Annotated
 
+from .scraping.mbid import get_mbid_info
 from .scraping.reparse import reparse_reviews
 from .scraping.reviews import retry_null_youtube_links, scrape_all_reviews
 from .scraping.web import remove_duplicates, scrape_all_urls
@@ -83,7 +84,7 @@ def reviews(
         typer.Option(
             "--input-file", "-i", help="Path to the file containing review URLs."
         ),
-    ] = "data/unique_review_urls.txt",
+    ] = "data/review_urls.txt",
     output_file: Annotated[
         str,
         typer.Option(
@@ -131,7 +132,7 @@ def youtube(
             "-o",
             help="Path to save the review & YouTube data (JSON Lines [.jsonl]).",
         ),
-    ] = "data/updated_review_info.jsonl",
+    ] = "data/youtube_review_info.jsonl",
 ) -> None:
     """Scrape a list of the review URLs from The Needle Drop website.
 
@@ -141,6 +142,41 @@ def youtube(
     """
     update_reviews_with_youtube_details(input_file, output_file)
     reparse_reviews(output_file, output_file)
+
+
+@scrape.command(
+    "mbid",
+    help=(
+        "Scrape information for each review from MusicBrainz. Must run `tns "
+        "scrape youtube` first. Will get genres, MBIDs, and cover art links."
+    ),
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+def mbid(
+    input_file: Annotated[
+        str,
+        typer.Option(
+            "--input-file",
+            "-i",
+            help="Path to the file containing review JSON Lines data.",
+        ),
+    ] = "data/youtube_review_info.jsonl",
+    output_file: Annotated[
+        str,
+        typer.Option(
+            "--output-file",
+            "-o",
+            help="Path to save the review & YouTube data (JSON Lines [.jsonl]).",
+        ),
+    ] = "data/mbid_review_info.jsonl",
+) -> None:
+    """Scrape a list of the review URLs from The Needle Drop website.
+
+    Arguments:
+        input_file: Path to the file containing review URLs.
+        output_file: Path to save the review data.
+    """
+    get_mbid_info(input_file, output_file)
 
 
 app.add_typer(scrape, name="scrape")
