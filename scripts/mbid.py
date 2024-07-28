@@ -108,6 +108,35 @@ def get_processed_urls(output_file: str) -> set:
     return processed
 
 
+def get_musicbrainz_info(artist: str, album: str) -> tuple:
+    """Get the genres and cover art links for a given entry.
+
+    Arguments:
+        artist: The artist name.
+        album: The album name
+
+    Returns:
+        A tuple containing the MBID, genres, full image URL and thumbnail URL.
+    """
+    if "Run Overdrive" in album:
+        album = album.replace(" 7'' | REVIEW", "").replace('"', "")
+    if "| REVIEW" in album:
+        album = album.replace("| REVIEW", "")
+    if "‡ REVIEW" in album:
+        album = album.replace("‡ REVIEW", "")
+
+    mbid = search_album_mbid(artist, album)
+    genres = get_genres(mbid)
+    full_image, thumbnail = get_cover_art_links(mbid)
+    if not mbid:
+        log.warning(f"No MBID found for {artist} - {album}")
+        if not genres:
+            log.warning(f"No genres found for {artist} - {album}")
+        if not full_image:
+            log.warning(f"No cover art found for {artist} - {album}")
+    return mbid, genres, full_image, thumbnail
+
+
 def get_mbid_info(input_file: str, output_file: str) -> None:
     """Process the input file, adding MBIDs, genres and cover art links.
 
@@ -133,37 +162,20 @@ def get_mbid_info(input_file: str, output_file: str) -> None:
             if url in processed_urls:
                 log.info(f"Skipping already processed entry: {url}")
                 continue
-
             artist = entry.get("artist")
             album = entry.get("album")
+            mbid, genres, full_image, thumbnail = get_musicbrainz_info(artist, album)
 
-            if artist and album:
-                if "Run Overdrive" in album:
-                    album = album.replace(" 7'' | REVIEW", "").replace('"', "")
-                if "| REVIEW" in album:
-                    album = album.replace("| REVIEW", "")
-                if "‡ REVIEW" in album:
-                    album = album.replace("‡ REVIEW", "")
+            if mbid:
+                entry["album_mbid"] = mbid
 
-                mbid = search_album_mbid(artist, album)
-                if mbid:
-                    entry["album_mbid"] = mbid
+                # Fetch and add genres
+                if genres:
+                    entry["mb_genres"] = genres
 
-                    # Fetch and add genres
-                    genres = get_genres(mbid)
-                    if genres:
-                        entry["mb_genres"] = genres
-                    else:
-                        log.warning(f"No genres found for {artist} - {album}")
-
-                    full_image, thumbnail = get_cover_art_links(mbid)
-                    if full_image:
-                        entry["cover_art_full"] = full_image
-                        entry["cover_art_thumbnail"] = thumbnail
-                    else:
-                        log.warning(f"No cover art found for {artist} - {album}")
-                else:
-                    log.warning(f"No MBID found for {artist} - {album}")
+                if full_image:
+                    entry["cover_art_full"] = full_image
+                    entry["cover_art_thumbnail"] = thumbnail
 
             json.dump(entry, outfile)
             outfile.write("\n")

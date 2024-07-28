@@ -234,10 +234,17 @@ def reparse_reviews(input_file: str, output_file: str) -> None:
         input_file: The path to the input file containing the review information
         output_file: The path to the output file to write the updated review information
     """
-    with open(input_file, "r") as infile, open(output_file, "w") as outfile:
-        for line in infile:
-            json_obj = json.loads(line.strip())
-            updated_obj = parse_review(json_obj)
+    with open(input_file, "r") as infile:
+        # Read all the lines in the input file
+        lines = infile.readlines()
+    objs = []
+    for line in lines:
+        # Parse the JSON object and update the review information
+        updated_obj = parse_review(json.loads(line))
+        objs.append(updated_obj)
+    with open(output_file, "w") as outfile:
+        for updated_obj in objs:
+            # Write the updated JSON object to the output file
             json.dump(updated_obj, outfile)
             outfile.write("\n")
     log.debug(f"Reparse complete. Updated review information saved to {output_file}")

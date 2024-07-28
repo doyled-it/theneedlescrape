@@ -1,13 +1,22 @@
+import json
 from pathlib import Path
 
 import typer
 from typing_extensions import Annotated
 
-from .scraping.mbid import get_mbid_info
-from .scraping.reparse import reparse_reviews
-from .scraping.reviews import retry_null_youtube_links, scrape_all_reviews
+from .scraping.mbid import get_mbid_info, get_musicbrainz_info
+from .scraping.reparse import parse_review, reparse_reviews
+from .scraping.reviews import (
+    get_review_info,
+    retry_null_youtube_links,
+    scrape_all_reviews,
+)
 from .scraping.web import remove_duplicates, scrape_all_urls
-from .scraping.youtube import update_reviews_with_youtube_details
+from .scraping.youtube import (
+    extract_review_details,
+    get_youtube_description,
+    update_reviews_with_youtube_details,
+)
 from .utils.logger import create_logger
 
 app = typer.Typer(
@@ -177,6 +186,58 @@ def mbid(
         output_file: Path to save the review data.
     """
     get_mbid_info(input_file, output_file)
+
+
+@scrape.command(
+    "add-missing",
+    help=("Scrape information for the whole pipeline for a review based on the URL."),
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+def add_missing(
+    url: Annotated[
+        str,
+        typer.Option(
+            "--url",
+            "-u",
+            help="The URL to The Needle Drop review from theneedledrop.com.",
+        ),
+    ] = "https://theneedledrop.com/2015-6-kendrick-lamar-to-pimp-a-butterfly/",
+    output_file: Annotated[
+        str,
+        typer.Option(
+            "--output-file",
+            "-o",
+            help=(
+                "Path to save the review, MusicBrainz, and YouTube data (JSON Lines "
+                "[.jsonl]). Will add to an existing file if it exists."
+            ),
+        ),
+    ] = "data/mbid_review_info.jsonl",
+) -> None:
+    """Scrape a list of the review URLs from The Needle Drop website.
+
+    Arguments:
+        input_file: Path to the file containing review URLs.
+        output_file: Path to save the review data.
+    """
+    review_info = get_review_info(url)
+    youtube_description = get_youtube_description(review_info["youtube_link"])
+    review_info.update(whole_description=youtube_description)
+    details = extract_review_details(review_info["whole_description"])
+    review_info.update(details)
+    parsed_review = parse_review(review_info)
+    mbid, genres, full_image, thumbnail = get_musicbrainz_info(
+        parsed_review["artist"], parsed_review["album"]
+    )
+    parsed_review.update(
+        album_mbid=mbid,
+        mb_genres=genres,
+        cover_art_full=full_image,
+        cover_art_thumbnail=thumbnail,
+    )
+    with open(output_file, "a") as outfile:
+        json.dump(parsed_review, outfile)
+        outfile.write("\n")
 
 
 app.add_typer(scrape, name="scrape")
